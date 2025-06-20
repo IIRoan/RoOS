@@ -35,11 +35,6 @@ dnf5 install -y zsh
 dnf5 install -y zsh-autosuggestions
 dnf5 install -y yakuake
 
-# Install Ghostty from COPR
-dnf5 -y copr enable pgdev/ghostty
-dnf5 install -y ghostty
-dnf5 -y copr disable pgdev/ghostty
-
 # Security and network tools
 dnf5 install -y nmap
 dnf5 install -y wireshark
