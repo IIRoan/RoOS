@@ -57,9 +57,6 @@ systemctl enable podman.socket
 systemctl enable docker.socket
 systemctl enable libvirtd.service
 
-#### Add RoOS just recipes
-
-echo "import \"/usr/share/roos/just/roos.just\"" >> /usr/share/ublue-os/justfile
 
 #### Setup RoOS branding
 
