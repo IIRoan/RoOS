@@ -44,67 +44,143 @@ jobs:
       stream_name: ${{ inputs.stream_name }}
     secrets: inherit
 
-  trigger-iso-build:
-    name: Trigger ISO Build
-    if: inputs.build_type == 'both' || inputs.build_type == 'iso-only'
+  build-isos-both:
+    name: Build ISOs (After Container Build)
+    if: inputs.build_type == 'both'
     needs: build-images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [amd64]
+        flavor: ["main", "nvidia-open"]
+        image_version: ["${{ inputs.stream_name }}"]
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
     steps:
-      - name: Trigger ISO Workflow
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Setup Just
+        uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
+
+      - name: Format image ref
+        id: image_ref
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          set -eoux pipefail          
+          image_name=$(just image_name "bluefin" "${{ matrix.image_version}}" "${{ matrix.flavor}}")
+          image_ref="${IMAGE_REGISTRY}/${image_name}"
+          image_ref=$(echo "$image_ref" | tr '[:upper:]' '[:lower:]')
+          KARGS="NONE"
+          echo "image_ref=$image_ref" >> "${GITHUB_OUTPUT}"
+          echo "artifact_format="$image_name-${{ matrix.image_version }}-$(uname -m)"" >> "${GITHUB_OUTPUT}"
+          echo "kargs=$KARGS" >> "${GITHUB_OUTPUT}"
+
+      - name: Build ISO
+        id: build
+        uses: ublue-os/titanoboa@main
         with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'reusable-build-iso-anaconda.yml',
-              ref: context.ref
-            });
-            
-            // Wait a moment for the workflow to start
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            
-            // Wait for the workflow to complete
-            let completed = false;
-            let attempts = 0;
-            const maxAttempts = 60; // 30 minutes max wait
-            
-            while (!completed && attempts < maxAttempts) {
-              const runs = await github.rest.actions.listWorkflowRuns({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                workflow_id: 'reusable-build-iso-anaconda.yml',
-                per_page: 1
-              });
-              
-              if (runs.data.workflow_runs.length > 0) {
-                const latestRun = runs.data.workflow_runs[0];
-                if (latestRun.status === 'completed') {
-                  completed = true;
-                  console.log(`ISO build completed with conclusion: ${latestRun.conclusion}`);
-                  if (latestRun.conclusion !== 'success') {
-                    console.log(`Warning: ISO build failed with conclusion: ${latestRun.conclusion}`);
-                    console.log(`ISO build URL: ${latestRun.html_url}`);
-                    // Don't throw error - let the workflow continue for partial releases
-                  }
-                }
-              }
-              
-              if (!completed) {
-                await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
-                attempts++;
-              }
-            }
-            
-            if (!completed) {
-              console.log('Warning: ISO build did not complete within timeout');
-              // Don't throw error - let the workflow continue for partial releases
-            }
+          image-ref: ${{ steps.image_ref.outputs.image_ref }}:${{ matrix.image_version }}
+          flatpaks-list: ${{ github.workspace }}/iso_files/system-flatpaks.list
+          hook-post-rootfs: ${{ github.workspace }}/iso_files/configure_iso_anaconda.sh
+          kargs: ${{ steps.image_ref.outputs.kargs }}
+
+      - name: Rename ISO
+        id: rename
+        env:
+          OUTPUT_PATH: ${{ steps.build.outputs.iso-dest }}
+          FLAVOR: ${{ matrix.flavor }}
+          OUTPUT_NAME: ${{ steps.image_ref.outputs.artifact_format }}
+          IMAGE_VERSION: ${{ matrix.image_version }}
+        run: |
+          set -x
+          mkdir -p output
+          OUTPUT_DIRECTORY="$(realpath output)"
+          sha256sum "${OUTPUT_PATH}" | tee "${OUTPUT_DIRECTORY}/${OUTPUT_NAME}.iso-CHECKSUM"
+          mv "${OUTPUT_PATH}" "${OUTPUT_DIRECTORY}/${OUTPUT_NAME}.iso"
+          echo "output_directory=$OUTPUT_DIRECTORY" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload to Job Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.image_ref.outputs.artifact_format }}
+          if-no-files-found: error
+          path: ${{ steps.rename.outputs.output_directory }}
+
+  build-isos-only:
+    name: Build ISOs (Standalone)
+    if: inputs.build_type == 'iso-only'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [amd64]
+        flavor: ["main", "nvidia-open"]
+        image_version: ["${{ inputs.stream_name }}"]
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Setup Just
+        uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3
+
+      - name: Format image ref
+        id: image_ref
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          set -eoux pipefail          
+          image_name=$(just image_name "bluefin" "${{ matrix.image_version}}" "${{ matrix.flavor}}")
+          image_ref="${IMAGE_REGISTRY}/${image_name}"
+          image_ref=$(echo "$image_ref" | tr '[:upper:]' '[:lower:]')
+          KARGS="NONE"
+          echo "image_ref=$image_ref" >> "${GITHUB_OUTPUT}"
+          echo "artifact_format="$image_name-${{ matrix.image_version }}-$(uname -m)"" >> "${GITHUB_OUTPUT}"
+          echo "kargs=$KARGS" >> "${GITHUB_OUTPUT}"
+
+      - name: Build ISO
+        id: build
+        uses: ublue-os/titanoboa@main
+        with:
+          image-ref: ${{ steps.image_ref.outputs.image_ref }}:${{ matrix.image_version }}
+          flatpaks-list: ${{ github.workspace }}/iso_files/system-flatpaks.list
+          hook-post-rootfs: ${{ github.workspace }}/iso_files/configure_iso_anaconda.sh
+          kargs: ${{ steps.image_ref.outputs.kargs }}
+
+      - name: Rename ISO
+        id: rename
+        env:
+          OUTPUT_PATH: ${{ steps.build.outputs.iso-dest }}
+          FLAVOR: ${{ matrix.flavor }}
+          OUTPUT_NAME: ${{ steps.image_ref.outputs.artifact_format }}
+          IMAGE_VERSION: ${{ matrix.image_version }}
+        run: |
+          set -x
+          mkdir -p output
+          OUTPUT_DIRECTORY="$(realpath output)"
+          sha256sum "${OUTPUT_PATH}" | tee "${OUTPUT_DIRECTORY}/${OUTPUT_NAME}.iso-CHECKSUM"
+          mv "${OUTPUT_PATH}" "${OUTPUT_DIRECTORY}/${OUTPUT_NAME}.iso"
+          echo "output_directory=$OUTPUT_DIRECTORY" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload to Job Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.image_ref.outputs.artifact_format }}
+          if-no-files-found: error
+          path: ${{ steps.rename.outputs.output_directory }}
 
   create-release:
     name: Create Release
-    if: always() && !failure() && !cancelled()
-    needs: [build-images, trigger-iso-build]
+    if: always() && !cancelled()
+    needs: [build-images, build-isos-both, build-isos-only]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -130,14 +206,15 @@ jobs:
             ## RoOS Release ${{ inputs.release_tag }}
             
             This release includes:
-            - Container images for ${{ inputs.stream_name }} stream
-            - Live ISO images for installation
+            ${{ inputs.build_type == 'both' && '- Container images for ' || '' }}${{ inputs.build_type == 'both' && inputs.stream_name || '' }}${{ inputs.build_type == 'both' && ' stream' || '' }}
+            ${{ (inputs.build_type == 'both' || inputs.build_type == 'iso-only') && '- Live ISO images for installation' || '' }}
+            ${{ inputs.build_type == 'container-only' && '- Container images for ' || '' }}${{ inputs.build_type == 'container-only' && inputs.stream_name || '' }}${{ inputs.build_type == 'container-only' && ' stream' || '' }}
             
             ### Container Images
-            Images are available at: `ghcr.io/${{ github.repository_owner }}/bluefin:${{ inputs.stream_name }}`
+            ${{ inputs.build_type != 'iso-only' && 'Images are available at: `ghcr.io/' || '' }}${{ inputs.build_type != 'iso-only' && github.repository_owner || '' }}${{ inputs.build_type != 'iso-only' && '/bluefin:' || '' }}${{ inputs.build_type != 'iso-only' && inputs.stream_name || '' }}${{ inputs.build_type != 'iso-only' && '`' || '' }}
             
             ### ISO Images
-            Download the ISO files from the assets below to install RoOS on your system.
+            ${{ inputs.build_type != 'container-only' && 'Download the ISO files from the assets below to install RoOS on your system.' || '' }}
             
             Built from commit: ${{ github.sha }}
           files: ./artifacts/**/*
