@@ -34,15 +34,61 @@ jobs:
       stream_name: ${{ inputs.stream_name }}
     secrets: inherit
 
-  build-isos:
-    name: Build ISOs
+  trigger-iso-build:
+    name: Trigger ISO Build
     needs: build-images
-    uses: ./.github/workflows/reusable-build-iso-anaconda.yml
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger ISO Workflow
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'reusable-build-iso-anaconda.yml',
+              ref: context.ref
+            });
+            
+            // Wait a moment for the workflow to start
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            // Wait for the workflow to complete
+            let completed = false;
+            let attempts = 0;
+            const maxAttempts = 60; // 30 minutes max wait
+            
+            while (!completed && attempts < maxAttempts) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'reusable-build-iso-anaconda.yml',
+                per_page: 1
+              });
+              
+              if (runs.data.workflow_runs.length > 0) {
+                const latestRun = runs.data.workflow_runs[0];
+                if (latestRun.status === 'completed') {
+                  completed = true;
+                  if (latestRun.conclusion !== 'success') {
+                    throw new Error(`ISO build failed with conclusion: ${latestRun.conclusion}`);
+                  }
+                }
+              }
+              
+              if (!completed) {
+                await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30 seconds
+                attempts++;
+              }
+            }
+            
+            if (!completed) {
+              throw new Error('ISO build did not complete within timeout');
+            }
 
   create-release:
     name: Create Release
-    needs: [build-images, build-isos]
+    needs: [build-images, trigger-iso-build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
