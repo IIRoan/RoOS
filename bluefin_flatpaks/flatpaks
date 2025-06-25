@@ -27,5 +27,12 @@ app/org.gnome.Weather
 app/io.missioncenter.MissionCenter
 app/org.mozilla.firefox
 app/page.tesk.Refine
+app/app.zen_browser.zen
+app/com.brave.Browser
+app/com.discordapp.Discord
+app/com.microsoft.Edge
+app/com.spotify.Client
+app/com.termius.Termius
+app/io.beekeeperstudio.Studio
 runtime/org.gtk.Gtk3theme.adw-gtk3
 runtime/org.gtk.Gtk3theme.adw-gtk3-dark

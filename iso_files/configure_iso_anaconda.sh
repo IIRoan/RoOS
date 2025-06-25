@@ -122,11 +122,11 @@ sed -i 's|^Icon=.*|Icon=/usr/share/pixmaps/fedora-logo-icon.png|' /usr/share/app
 sed -i 's| Fedora| Bluefin|' /usr/share/anaconda/gnome/fedora-welcome || true
 sed -i 's|Activities|in the dock|' /usr/share/anaconda/gnome/fedora-welcome || true
 
-# Get Artwork
-git clone --depth=1 https://github.com/ublue-os/packages.git /root/packages
-mkdir -p /usr/share/anaconda/pixmaps/silverblue
-cp -r /root/packages/bluefin/fedora-logos/src/anaconda/* /usr/share/anaconda/pixmaps/silverblue/
-rm -rf /root/packages
+# Get Artwork - Using custom logos from system_files instead
+# git clone --depth=1 https://github.com/ublue-os/packages.git /root/packages
+# mkdir -p /usr/share/anaconda/pixmaps/silverblue
+# cp -r /root/packages/bluefin/fedora-logos/src/anaconda/* /usr/share/anaconda/pixmaps/silverblue/
+# rm -rf /root/packages
 
 # Interactive Kickstart
 tee -a /usr/share/anaconda/interactive-defaults.ks <<EOF

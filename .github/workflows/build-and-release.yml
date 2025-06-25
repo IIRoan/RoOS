@@ -1,0 +1,83 @@
+---
+name: Build and Release
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (e.g., v1.0.0)"
+        required: true
+        type: string
+      stream_name:
+        description: "The Fedora Version: gts, stable, or latest"
+        required: true
+        default: "stable"
+        type: choice
+        options:
+          - "gts"
+          - "stable"
+          - "latest"
+
+env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-images:
+    name: Build and Push Images
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      image_flavors: '["main", "nvidia", "nvidia-open"]'
+      brand_name: "bluefin"
+      stream_name: ${{ inputs.stream_name }}
+    secrets: inherit
+
+  build-isos:
+    name: Build ISOs
+    needs: build-images
+    uses: ./.github/workflows/reusable-build-iso-anaconda.yml
+    secrets: inherit
+
+  create-release:
+    name: Create Release
+    needs: [build-images, build-isos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          path: ./artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -la ./artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: Release ${{ inputs.release_tag }}
+          body: |
+            ## RoOS Release ${{ inputs.release_tag }}
+            
+            This release includes:
+            - Container images for ${{ inputs.stream_name }} stream
+            - Live ISO images for installation
+            
+            ### Container Images
+            Images are available at: `ghcr.io/${{ github.repository_owner }}/bluefin:${{ inputs.stream_name }}`
+            
+            ### ISO Images
+            Download the ISO files from the assets below to install RoOS on your system.
+            
+            Built from commit: ${{ github.sha }}
+          files: ./artifacts/**/*
+          draft: false
+          prerelease: false
