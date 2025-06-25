@@ -47,7 +47,7 @@ jobs:
   trigger-iso-build:
     name: Trigger ISO Build
     if: inputs.build_type == 'both' || inputs.build_type == 'iso-only'
-    needs: ${{ inputs.build_type == 'both' && 'build-images' || '' }}
+    needs: build-images
     runs-on: ubuntu-latest
     steps:
       - name: Trigger ISO Workflow
