@@ -55,6 +55,12 @@ jobs:
         run: |
           just check
 
+      - name: Lowercase Repository Owner
+        id: repo_owner_case
+        uses: ASzc/change-string-case-action@d0603cd0a7dd490be678164909f65c7737470a7f # v6
+        with:
+          string: ${{ github.repository_owner }}
+
       - name: Image Name
         shell: bash
         run: |
@@ -74,7 +80,7 @@ jobs:
         id: build-image
         shell: bash
         run: |
-          sudo $(command -v just) repo_organization="${{ github.repository_owner }}" \
+          sudo $(command -v just) repo_organization="${{ steps.repo_owner_case.outputs.lowercase }}" \
                     build-ghcr "${{ matrix.base_name }}" \
                                "${{ matrix.stream_name }}" \
                                "${{ matrix.image_flavor }}" \
