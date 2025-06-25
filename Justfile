@@ -492,8 +492,8 @@ build-iso $image="bluefin" $tag="latest" $flavor="main" ghcr="0" pipeline="0":
 
     # Local or Github Build
     if [[ "{{ ghcr }}" == "1" ]]; then
-        IMAGE_FULL=ghcr.io/ublue-os/"${image_name}":"${tag}"
-        IMAGE_REPO=ghcr.io/ublue-os
+        IMAGE_FULL=ghcr.io/{{ repo_organization }}/"${image_name}":"${tag}"
+        IMAGE_REPO=ghcr.io/{{ repo_organization }}
         ${PODMAN} pull "${IMAGE_FULL}"
     else
         IMAGE_FULL=localhost/"${image_name}":"${tag}"
