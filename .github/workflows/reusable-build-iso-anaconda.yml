@@ -78,6 +78,8 @@ jobs:
           set -eoux pipefail          
           image_name=$(just image_name "bluefin" "${{ matrix.image_version}}" "${{ matrix.flavor}}")
           image_ref="${IMAGE_REGISTRY}/${image_name}"
+          # Convert to lowercase for container registry compatibility
+          image_ref=$(echo "$image_ref" | tr '[:upper:]' '[:lower:]')
           KARGS="NONE"
           echo "image_ref=$image_ref" >> "${GITHUB_OUTPUT}"
           echo "artifact_format="$image_name-${{ matrix.image_version }}-$(uname -m)"" >> "${GITHUB_OUTPUT}"
