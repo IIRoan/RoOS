@@ -20,14 +20,12 @@ app/org.gnome.Firmware
 app/org.gnome.font-viewer
 app/org.gnome.Logs
 app/org.gnome.Loupe
-app/org.gnome.Maps
 app/org.gnome.NautilusPreviewer
 app/org.gnome.SimpleScan
 app/org.gnome.TextEditor
 app/org.gnome.Weather
 app/io.missioncenter.MissionCenter
 app/org.mozilla.firefox
-app/org.mozilla.Thunderbird
 app/page.tesk.Refine
 runtime/org.gtk.Gtk3theme.adw-gtk3
 runtime/org.gtk.Gtk3theme.adw-gtk3-dark
