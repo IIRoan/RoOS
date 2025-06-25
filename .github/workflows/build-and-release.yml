@@ -47,14 +47,15 @@ jobs:
   build-isos:
     name: Build ISOs
     if: inputs.build_type == 'both' || inputs.build_type == 'iso-only'
-    needs: ${{ inputs.build_type == 'both' && fromJSON('["build-images"]') || fromJSON('[]') }}
     uses: ./.github/workflows/reusable-build-iso-anaconda.yml
     secrets: inherit
 
   create-release:
     name: Create Release
     if: always() && !cancelled()
-    needs: [build-images, build-isos]
+    needs: 
+      - build-images
+      - build-isos
     runs-on: ubuntu-latest
     permissions:
       contents: write
