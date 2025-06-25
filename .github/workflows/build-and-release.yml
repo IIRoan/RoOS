@@ -16,6 +16,15 @@ on:
           - "gts"
           - "stable"
           - "latest"
+      build_type:
+        description: "What to build"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - "both"
+          - "container-only"
+          - "iso-only"
 
 env:
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
@@ -27,6 +36,7 @@ concurrency:
 jobs:
   build-images:
     name: Build and Push Images
+    if: inputs.build_type == 'both' || inputs.build_type == 'container-only'
     uses: ./.github/workflows/reusable-build.yml
     with:
       image_flavors: '["main", "nvidia", "nvidia-open"]'
@@ -36,7 +46,8 @@ jobs:
 
   trigger-iso-build:
     name: Trigger ISO Build
-    needs: build-images
+    if: inputs.build_type == 'both' || inputs.build_type == 'iso-only'
+    needs: ${{ (inputs.build_type == 'both' && 'build-images') || '[]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger ISO Workflow
@@ -70,8 +81,11 @@ jobs:
                 const latestRun = runs.data.workflow_runs[0];
                 if (latestRun.status === 'completed') {
                   completed = true;
+                  console.log(`ISO build completed with conclusion: ${latestRun.conclusion}`);
                   if (latestRun.conclusion !== 'success') {
-                    throw new Error(`ISO build failed with conclusion: ${latestRun.conclusion}`);
+                    console.log(`Warning: ISO build failed with conclusion: ${latestRun.conclusion}`);
+                    console.log(`ISO build URL: ${latestRun.html_url}`);
+                    // Don't throw error - let the workflow continue for partial releases
                   }
                 }
               }
@@ -83,11 +97,13 @@ jobs:
             }
             
             if (!completed) {
-              throw new Error('ISO build did not complete within timeout');
+              console.log('Warning: ISO build did not complete within timeout');
+              // Don't throw error - let the workflow continue for partial releases
             }
 
   create-release:
     name: Create Release
+    if: always() && !failure() && !cancelled()
     needs: [build-images, trigger-iso-build]
     runs-on: ubuntu-latest
     permissions:
